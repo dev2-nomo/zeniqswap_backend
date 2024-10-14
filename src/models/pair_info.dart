@@ -32,6 +32,7 @@ class PairInfo {
     required this.reserve0,
     required this.reserve1,
     required this.type,
+    required this.poolSupply,
   });
   final UniswapV2Pair pair;
   final ERC20Entity token0;
@@ -40,9 +41,12 @@ class PairInfo {
   final BigInt reserve1;
 
   final PairType type;
+  final BigInt poolSupply;
 
-  ERC20Entity get token =>
-      switch (token0) { zeniqTokenWrapper => token1, _ => token0 };
+  ERC20Entity get token => switch (token0) {
+        zeniqTokenWrapper || wrappedZeniqSmart => token1,
+        _ => token0
+      };
 
   int get decimalOffset0 => decimalDiff0 < 0 ? 0 : decimalDiff0;
   int get decimalOffset1 => decimalDiff1 < 0 ? 0 : decimalDiff1;
@@ -64,17 +68,17 @@ class PairInfo {
   }
 
   double get zeniqRatio => switch (token0) {
-        zeniqTokenWrapper => ratio0,
+        zeniqTokenWrapper || wrappedZeniqSmart => ratio0,
         _ => ratio1,
       };
 
   Amount get zeniqAmount => switch (token0) {
-        zeniqTokenWrapper => amount0,
+        zeniqTokenWrapper || wrappedZeniqSmart => amount0,
         _ => amount1,
       };
 
   Amount get tokenAmount => switch (token0) {
-        zeniqTokenWrapper => amount1,
+        zeniqTokenWrapper || wrappedZeniqSmart => amount1,
         _ => amount0,
       };
 
@@ -134,6 +138,11 @@ class PairInfo {
     UniswapV2Pair pair, {
     required PairType type,
   }) async {
+    final erc20 = ERC20Contract(
+      contractAddress: pair.contractAddress,
+      rpc: pair.rpc,
+    );
+
     final results = await Future.wait([
       pair.token0().then(
             (contractAddress) => getTokenInfo(
@@ -156,6 +165,7 @@ class PairInfo {
             ),
           ),
       pair.getReserves(),
+      erc20.getSupply(),
     ]);
 
     final token0 = results[0] as ERC20Entity?;
@@ -165,6 +175,8 @@ class PairInfo {
 
     final (reserves0, reserves1) = results[2] as (BigInt, BigInt);
 
+    final poolSupply = results[3] as BigInt;
+
     return PairInfo._(
       pair: pair,
       token0: token0,
@@ -172,30 +184,9 @@ class PairInfo {
       reserve0: reserves0,
       reserve1: reserves1,
       type: type,
+      poolSupply: poolSupply,
     );
   }
-
-  Future<PairInfo> update() async {
-    final (reserve0, reserve1) = await pair.getReserves();
-
-    return copyWith(
-      reserve0: reserve0,
-      reserve1: reserve1,
-    );
-  }
-
-  PairInfo copyWith({
-    BigInt? reserve0,
-    BigInt? reserve1,
-  }) =>
-      PairInfo._(
-        pair: pair,
-        token0: token0,
-        token1: token1,
-        type: type,
-        reserve0: reserve0 ?? this.reserve0,
-        reserve1: reserve1 ?? this.reserve1,
-      );
 
   @override
   String toString() {
@@ -209,6 +200,7 @@ class PairInfo {
         'type': type.index,
         'reserve0': reserve0.toString(),
         'reserve1': reserve1.toString(),
+        'poolSupply': poolSupply.toString(),
       };
 }
 

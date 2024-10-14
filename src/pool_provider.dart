@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:walletkit_dart/walletkit_dart.dart';
+import 'common/image_repository.dart';
 import 'common/price_repository.dart';
+import 'models/image_entity.dart';
 import 'models/pair_info.dart';
+import 'models/token_entity.dart';
 
 final rpc = EvmRpcInterface(
   type: ZeniqSmartNetwork,
@@ -40,7 +43,9 @@ class PairProvider {
 
   Map<Currency, Map<ERC20Entity, Map<PairType, double>>> pairTokenPrices = {};
 
-  Set<ERC20Entity> get allTokens => pairs.map((pair) => pair.token).toSet();
+  Map<ERC20Entity, ImageEntity?> tokenImages = {};
+
+  Set<TokenEntity> tokens = {};
 
   Future<void> init() async {
     await update();
@@ -52,6 +57,7 @@ class PairProvider {
   Future<void> update() async {
     await fetchPairs();
     await fetchPrices();
+    await fetchTokenImages();
     if (!_completer.isCompleted) {
       _completer.complete();
     }
@@ -124,6 +130,50 @@ class PairProvider {
     };
 
     cache.put('pairsJson', jsonEncode(json));
+
+    final newTokens = <TokenEntity>[];
+
+    for (final pair in pairs) {
+      final token = TokenEntity(
+        pair.token,
+        pairTypes: [pair.type],
+      );
+      if (newTokens.contains(token) == false) {
+        newTokens.add(
+          TokenEntity(
+            pair.token,
+            pairTypes: [pair.type],
+          ),
+        );
+      } else {
+        final index = newTokens.indexOf(token);
+        newTokens[index].pairTypes.add(pair.type);
+      }
+    }
+
+    tokens = {
+      TokenEntity(zeniqTokenWrapper, pairTypes: [PairType.v2]),
+      TokenEntity(wrappedZeniqSmart, pairTypes: [PairType.legacy]),
+      ...newTokens.toSet(),
+    };
+  }
+
+  Future<void> fetchTokenImages() async {
+    final results = await Future.wait(
+      [
+        for (final token in tokens)
+          ImageRepository.getImage(
+            switch (token) {
+              zeniqTokenWrapper || wrappedZeniqSmart => zeniqSmart,
+              _ => token,
+            },
+          ),
+      ],
+    );
+
+    tokenImages = {
+      for (var i = 0; i < tokens.length; i++) tokens.elementAt(i): results[i],
+    };
   }
 }
 

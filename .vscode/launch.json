@@ -7,7 +7,8 @@
             "request": "launch",
             "command": "dart_frog dev",
             "env": {
-                "FRONTEND_URL": "http://127.0.0.1:3000"
+                "FRONTEND_URL": "http://127.0.0.1:3000",
+                "PORT": "3001"
             }
         },
         {
@@ -17,7 +18,8 @@
             "program": ".dart_frog/server.dart",
             "args": ["dev"],
             "env": {
-                "FRONTEND_URL": "http://127.0.0.1:3000"
+                "FRONTEND_URL": "http://127.0.0.1:3000",
+                "PORT": "3001"
             }
         }
     ]
