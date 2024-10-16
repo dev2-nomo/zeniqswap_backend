@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:walletkit_dart/walletkit_dart.dart';
 import 'common/image_repository.dart';
+import 'common/logger.dart';
 import 'common/price_repository.dart';
 import 'models/image_entity.dart';
 import 'models/pair_info.dart';
@@ -120,42 +121,46 @@ class PairProvider {
   }
 
   Future<void> fetchPairs() async {
-    final pairsNew = await fetchAllPairs(factoryNew, type: PairType.v2);
-    final pairsOld = await fetchAllPairs(factoryOld, type: PairType.legacy);
-    pairs = [...pairsNew, ...pairsOld];
+    try {
+      final pairsNew = await fetchAllPairs(factoryNew, type: PairType.v2);
+      final pairsOld = await fetchAllPairs(factoryOld, type: PairType.legacy);
+      pairs = [...pairsNew, ...pairsOld];
 
-    final json = {
-      'pairs': pairs,
-      'lastUpdated': DateTime.now().millisecondsSinceEpoch,
-    };
+      final json = {
+        'pairs': pairs,
+        'lastUpdated': DateTime.now().millisecondsSinceEpoch,
+      };
 
-    cache.put('pairsJson', jsonEncode(json));
+      cache.put('pairsJson', jsonEncode(json));
 
-    final newTokens = <TokenEntity>[];
+      final newTokens = <TokenEntity>[];
 
-    for (final pair in pairs) {
-      final token = TokenEntity(
-        pair.token,
-        pairTypes: [pair.type],
-      );
-      if (newTokens.contains(token) == false) {
-        newTokens.add(
-          TokenEntity(
-            pair.token,
-            pairTypes: [pair.type],
-          ),
+      for (final pair in pairs) {
+        final token = TokenEntity(
+          pair.token,
+          pairTypes: [pair.type],
         );
-      } else {
-        final index = newTokens.indexOf(token);
-        newTokens[index].pairTypes.add(pair.type);
+        if (newTokens.contains(token) == false) {
+          newTokens.add(
+            TokenEntity(
+              pair.token,
+              pairTypes: [pair.type],
+            ),
+          );
+        } else {
+          final index = newTokens.indexOf(token);
+          newTokens[index].pairTypes.add(pair.type);
+        }
       }
-    }
 
-    tokens = {
-      TokenEntity(zeniqTokenWrapper, pairTypes: [PairType.v2]),
-      TokenEntity(wrappedZeniqSmart, pairTypes: [PairType.legacy]),
-      ...newTokens.toSet(),
-    };
+      tokens = {
+        TokenEntity(zeniqTokenWrapper, pairTypes: [PairType.v2]),
+        TokenEntity(wrappedZeniqSmart, pairTypes: [PairType.legacy]),
+        ...newTokens.toSet(),
+      };
+    } catch (e, s) {
+      Logger.logError(e, s: s);
+    }
   }
 
   Future<void> fetchTokenImages() async {
