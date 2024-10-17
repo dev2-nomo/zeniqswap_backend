@@ -48,6 +48,8 @@ class PairProvider {
 
   Set<TokenEntity> tokens = {};
 
+  Map<Currency, double> zeniqPrices = {};
+
   Future<void> init() async {
     await update();
     Timer.periodic(const Duration(minutes: 1), (timer) {
@@ -68,16 +70,23 @@ class PairProvider {
     final newPairTokenPrices =
         <Currency, Map<ERC20Entity, Map<PairType, double>>>{};
 
-    final zeniqPrices = await Future.wait(
-      [
+    try {
+      final newZeniqPrices = {
         for (final cur in currencies)
-          PriceRepository.fetchSingle(zeniqSmart, cur),
-      ],
-    );
+          cur: await PriceRepository.fetchSingle(zeniqSmart, cur),
+      };
+      zeniqPrices = newZeniqPrices;
+    } catch (e, s) {
+      Logger.logError(e, s: s);
+    }
+
+    if (zeniqPrices.isEmpty) {
+      return;
+    }
 
     for (var i = 0; i < currencies.length; i++) {
       final cur = currencies[i];
-      final zeniqPrice = zeniqPrices[i];
+      final zeniqPrice = zeniqPrices[cur]!;
       final zeniqPriceState = PriceState(price: zeniqPrice, currency: cur);
 
       newPairTokenPrices[cur] = {};
