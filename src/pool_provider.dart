@@ -4,6 +4,7 @@ import 'package:walletkit_dart/walletkit_dart.dart';
 import 'common/image_repository.dart';
 import 'common/logger.dart';
 import 'common/price_repository.dart';
+import 'common/token_repository.dart';
 import 'models/image_entity.dart';
 import 'models/pair_info.dart';
 import 'models/token_entity.dart';
@@ -48,22 +49,35 @@ class PairProvider {
 
   Set<TokenEntity> tokens = {};
 
+  Set<ERC20Entity> fixedTokens = {};
+
   Map<Currency, double> zeniqPrices = {};
 
   Future<void> init() async {
     await update();
+    await updateNoPriority();
+
+    if (!_completer.isCompleted) {
+      _completer.complete();
+    }
+
     Timer.periodic(const Duration(minutes: 1), (timer) {
       update();
     });
+
+    Timer.periodic(const Duration(hours: 1), (timer) {
+      updateNoPriority();
+    });
+  }
+
+  Future<void> updateNoPriority() async {
+    await fetchTokenImages();
+    await fetchFixedTokens();
   }
 
   Future<void> update() async {
     await fetchPairs();
     await fetchPrices();
-    await fetchTokenImages();
-    if (!_completer.isCompleted) {
-      _completer.complete();
-    }
   }
 
   Future<void> fetchPrices() async {
@@ -127,6 +141,20 @@ class PairProvider {
     }
 
     pairTokenPrices = newPairTokenPrices;
+  }
+
+  Future<void> fetchFixedTokens() async {
+    try {
+      final fixedTokens = await TokenRepository.fetchFixedTokens();
+
+      this.fixedTokens = {
+        ...fixedTokens,
+        zeniqTokenWrapper,
+        wrappedZeniqSmart,
+      };
+    } catch (e) {
+      Logger.logError(e);
+    }
   }
 
   Future<void> fetchPairs() async {

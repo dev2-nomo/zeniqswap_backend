@@ -14,6 +14,7 @@ Future<Response> onRequest(RequestContext context) async {
         ...token.toJson(),
         'pairTypes': token.pairTypes.map((e) => e.toString()).toList(),
         'image': pairProvider.tokenImages[token]?.large,
+        'fixed': pairProvider.fixedTokens.contains(token),
       }
   ];
 
