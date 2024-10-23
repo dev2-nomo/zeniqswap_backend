@@ -5,6 +5,8 @@ import 'package:dart_frog/dart_frog.dart';
 
 import 'src/pool_provider.dart';
 
+const version = "1.0.0";
+
 Future<void> init(InternetAddress ip, int port) async {
   unawaited(PairProvider.instance.init());
 }
