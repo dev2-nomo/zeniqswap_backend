@@ -66,8 +66,31 @@ jobs:
       - name: rsync to dex server
         run: rsync -avz --delete --exclude='.git' build/ ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }}:zeniqswap_backend/
 
-      - name: build docker image on LIQ server
-        run: ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "cd zeniqswap_backend && docker build . -t zeniqswap_backend && docker rm -f zeniqswap_backend && docker ps -a | grep zeniqswap_backend && systemctl restart zeniqswap-backend.service"
+      #   - name: build docker image on LIQ server
+      #     run: ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "cd zeniqswap_backend && docker build . -t zeniqswap_backend && docker rm -f zeniqswap_backend && docker ps -a | grep zeniqswap_backend && systemctl restart zeniqswap-backend.service"
+      - name: Build Docker image on LIQ server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
+            cd zeniqswap_backend && \
+            docker build . -t zeniqswap_backend"
 
-      - name: build docker image on DEX server
-        run: ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "cd zeniqswap_backend && docker build . -t zeniqswap_backend && docker rm -f zeniqswap_backend && docker ps -a | grep zeniqswap_backend && systemctl restart zeniqswap-backend.service"
+      - name: Stop old container on LIQ server
+        if: always()
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
+            docker rm -f zeniqswap_backend || true"
+
+      - name: Restart service on LIQ server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
+            sudo systemctl restart zeniqswap-backend.service"
+
+      - name: Verify deployment on LIQ server
+        if: always()
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
+            docker ps | grep zeniqswap_backend && \
+            systemctl status zeniqswap-backend.service"
+
+    #   - name: build docker image on DEX server
+    #     run: ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "cd zeniqswap_backend && docker build . -t zeniqswap_backend && docker rm -f zeniqswap_backend && docker ps -a | grep zeniqswap_backend && systemctl restart zeniqswap-backend.service"
