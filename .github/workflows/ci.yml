@@ -89,8 +89,52 @@ jobs:
         if: always()
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
-            docker ps | grep zeniqswap_backend && \
-            systemctl status zeniqswap-backend.service"
+            echo 'Docker container status:' && \
+            if docker ps | grep -q zeniqswap_backend; then \
+              echo 'Container is running' && \
+              docker ps | grep zeniqswap_backend; \
+            else \
+              echo 'Warning: Container not found'; \
+            fi && \
+            echo 'Service status:' && \
+            if systemctl is-active --quiet zeniqswap-backend.service; then \
+              echo 'Service is active' && \
+              systemctl status zeniqswap-backend.service; \
+            else \
+              echo 'Warning: Service is not active'; \
+            fi"
 
-    #   - name: build docker image on DEX server
-    #     run: ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "cd zeniqswap_backend && docker build . -t zeniqswap_backend && docker rm -f zeniqswap_backend && docker ps -a | grep zeniqswap_backend && systemctl restart zeniqswap-backend.service"
+      - name: Build Docker image on DEX server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
+            cd zeniqswap_backend && \
+            docker build . -t zeniqswap_backend"
+
+      - name: Stop old container on DEX server
+        if: always()
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
+            docker rm -f zeniqswap_backend || true"
+
+      - name: Restart service on DEX server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
+            sudo systemctl restart zeniqswap-backend.service"
+            - name: Verify deployment on LIQ server
+            if: always()
+            run: |
+              ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
+                echo 'Docker container status:' && \
+                if docker ps | grep -q zeniqswap_backend; then \
+                  echo 'Container is running' && \
+                  docker ps | grep zeniqswap_backend; \
+                else \
+                  echo 'Warning: Container not found'; \
+                fi && \
+                echo 'Service status:' && \
+                if systemctl is-active --quiet zeniqswap-backend.service; then \
+                  echo 'Service is active' && \
+                  systemctl status zeniqswap-backend.service; \
+                else \
+                  echo 'Warning: Service is not active'; \
+                fi"
