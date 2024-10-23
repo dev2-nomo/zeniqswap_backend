@@ -36,7 +36,7 @@ jobs:
         run: dart pub global activate dart_frog_cli
 
       - name: build frog
-        run: dart frog build
+        run: dart_frog build
 
       - name: Add SSH key
         run: |
