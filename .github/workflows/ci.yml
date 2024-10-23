@@ -118,23 +118,24 @@ jobs:
 
       - name: Restart service on DEX server
         run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
             sudo systemctl restart zeniqswap-backend.service"
-            - name: Verify deployment on LIQ server
-            if: always()
-            run: |
-              ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
-                echo 'Docker container status:' && \
-                if docker ps | grep -q zeniqswap_backend; then \
-                  echo 'Container is running' && \
-                  docker ps | grep zeniqswap_backend; \
-                else \
-                  echo 'Warning: Container not found'; \
-                fi && \
-                echo 'Service status:' && \
-                if systemctl is-active --quiet zeniqswap-backend.service; then \
-                  echo 'Service is active' && \
-                  systemctl status zeniqswap-backend.service; \
-                else \
-                  echo 'Warning: Service is not active'; \
-                fi"
+
+      - name: Verify deployment on DEX server
+        if: always()
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
+            echo 'Docker container status:' && \
+            if docker ps | grep -q zeniqswap_backend; then \
+              echo 'Container is running' && \
+              docker ps | grep zeniqswap_backend; \
+            else \
+              echo 'Warning: Container not found'; \
+            fi && \
+            echo 'Service status:' && \
+            if systemctl is-active --quiet zeniqswap-backend.service; then \
+              echo 'Service is active' && \
+              systemctl status zeniqswap-backend.service; \
+            else \
+              echo 'Warning: Service is not active'; \
+            fi"
