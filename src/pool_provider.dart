@@ -106,6 +106,24 @@ class PairProvider {
       newPairTokenPrices[cur] = {};
 
       for (final pair in pairs) {
+        /// Pfusch Lösung für AVINOC juckt aber ka sau
+        if (pair.token == avinocZSC) {
+          final price = await PriceRepository.fetchSingle(pair.token, cur);
+          newPairTokenPrices[cur]!.update(
+            pair.token,
+            (value) {
+              return {
+                ...value,
+                pair.type: price,
+              };
+            },
+            ifAbsent: () => {
+              pair.type: price,
+            },
+          );
+          continue;
+        }
+
         final priceState = pair.calculateTokenPrice(zeniqPriceState);
         newPairTokenPrices[cur]!.update(
           pair.token,
