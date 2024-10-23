@@ -33,7 +33,7 @@ jobs:
       - run: flutter pub get
 
       - name: activate frog cli
-        run: dart pub activate dart_frog_cli
+        run: dart pub global activate dart_frog_cli
 
       - name: build frog
         run: dart frog build
