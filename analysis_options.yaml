@@ -6,6 +6,8 @@ include: package:lints/recommended.yaml
 analyzer:
   exclude:
     - build/**
+    - packages/**
 linter:
   rules:
     - camel_case_types
+    - lower_case_with_underscores 

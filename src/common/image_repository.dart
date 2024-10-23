@@ -15,11 +15,11 @@ abstract class ImageRepository {
       final result = await _getImage(endpoint).timeout(REQUEST_TIMEOUT_LIMIT);
       return result;
     } catch (e, s) {
-      // Logger.logError(
-      //   e,
-      //   hint: 'Failed to fetch image from $endpoint',
-      //   s: s,
-      // );
+      Logger.logError(
+        e,
+        hint: 'Failed to fetch image from $endpoint',
+        s: s,
+      );
       return null;
     }
   }

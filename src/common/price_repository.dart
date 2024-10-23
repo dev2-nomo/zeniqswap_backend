@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:walletkit_dart/walletkit_dart.dart';
 
-import '../pool_provider.dart';
 import 'http_client.dart';
 import 'logger.dart';
 import '../models/pair_info.dart';
