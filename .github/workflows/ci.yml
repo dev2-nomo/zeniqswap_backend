@@ -60,8 +60,14 @@ jobs:
         run: |
           ssh -v -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "echo 'SSH connection established'"
 
-    #   - name: rsync to liquidity server
-    #     run: rsync -avz --delete --exclude='.git' build/ ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }}:zeniqswap_backend/
+      - name: rsync to liquidity server
+        run: rsync -avz --delete --exclude='.git' build/ ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }}:zeniqswap_backend/
 
-    #   - name: rsync to dex server
-    #     run: rsync -avz --delete --exclude='.git' build/ ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }}:zeniqswap_backend/
+      - name: rsync to dex server
+        run: rsync -avz --delete --exclude='.git' build/ ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }}:zeniqswap_backend/
+
+      - name: build docker image on LIQ server
+        run: ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "cd zeniqswap_backend && docker build . -t zeniqswap_backend && docker rm -f zeniqswap_backend && docker ps -a | grep zeniqswap_backend && systemctl restart zeniqswap-backend.service"
+
+      - name: build docker image on DEX server
+        run: ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "cd zeniqswap_backend && docker build . -t zeniqswap_backend && docker rm -f zeniqswap_backend && docker ps -a | grep zeniqswap_backend && systemctl restart zeniqswap-backend.service"
