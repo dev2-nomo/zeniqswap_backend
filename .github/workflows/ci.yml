@@ -76,22 +76,29 @@ jobs:
 
       - name: Stop old container on LIQ server
         if: always()
+        continue-on-error: true
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
             echo 'Stopping container...' && \
-            if docker ps -q -f name=zeniqswap_backend; then \
-              echo 'Container exists, attempting graceful stop...' && \
-              docker stop zeniqswap_backend || true && \
-              sleep 5 && \
-              docker rm -f zeniqswap_backend || true; \
-            fi && \
-              echo 'Checking for zombie processes...' && \
-            if pgrep -f zeniqswap_backend; then \
-              echo 'Found remaining processes, forcing cleanup...' && \
-              sudo pkill -9 -f zeniqswap_backend || true && \
-              sleep 2; \
-            fi && \
-              echo 'Cleanup complete'"
+            (docker stop zeniqswap_backend || true) && \
+            (docker rm -f zeniqswap_backend || true) && \
+            echo 'Container stopped' && \
+            (sudo systemctl stop zeniqswap-backend.service || true) && \
+            echo 'Service stopped' && \
+            (docker system prune -f || true) && \
+            echo 'Cleanup complete'"
+
+      - name: Emergency cleanup if needed
+        if: always()
+        continue-on-error: true
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
+            echo 'Emergency cleanup...' && \
+            (sudo systemctl stop zeniqswap-backend.service || true) && \
+            (docker kill zeniqswap_backend || true) && \
+            (docker rm -f zeniqswap_backend || true) && \
+            (sudo pkill -9 -f zeniqswap_backend || true) && \
+            echo 'Emergency cleanup complete'"
 
       - name: Start new container on LIQ server
         run: |
@@ -147,22 +154,29 @@ jobs:
 
       - name: Stop old container on DEX server
         if: always()
+        continue-on-error: true
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
             echo 'Stopping container...' && \
-            if docker ps -q -f name=zeniqswap_backend; then \
-              echo 'Container exists, attempting graceful stop...' && \
-              docker stop zeniqswap_backend || true && \
-              sleep 5 && \
-              docker rm -f zeniqswap_backend || true; \
-            fi && \
-              echo 'Checking for zombie processes...' && \
-            if pgrep -f zeniqswap_backend; then \
-              echo 'Found remaining processes, forcing cleanup...' && \
-              sudo pkill -9 -f zeniqswap_backend || true && \
-              sleep 2; \
-            fi && \
-              echo 'Cleanup complete'"
+            (docker stop zeniqswap_backend || true) && \
+            (docker rm -f zeniqswap_backend || true) && \
+            echo 'Container stopped' && \
+            (sudo systemctl stop zeniqswap-backend.service || true) && \
+            echo 'Service stopped' && \
+            (docker system prune -f || true) && \
+            echo 'Cleanup complete'"
+
+      - name: Emergency cleanup DEX if needed
+        if: failure()
+        continue-on-error: true
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
+            echo 'Emergency cleanup...' && \
+            (sudo systemctl stop zeniqswap-backend.service || true) && \
+            (docker kill zeniqswap_backend || true) && \
+            (docker rm -f zeniqswap_backend || true) && \
+            (sudo pkill -9 -f zeniqswap_backend || true) && \
+            echo 'Emergency cleanup complete'"
 
       - name: Start new container on DEX server
         run: |
