@@ -114,18 +114,24 @@ jobs:
       - name: Restart service on LIQ server
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
-            echo 'Stopping service...' && \
-            sudo systemctl stop zeniqswap-backend.service || true && \
-            sleep 2 && \
-            echo 'Starting service...' && \
-            sudo systemctl start zeniqswap-backend.service && \
-            echo 'Waiting for service to stabilize...' && \
-            sleep 5 && \
-            if ! systemctl is-active --quiet zeniqswap-backend.service; then \
-              echo 'Service failed to start. Checking logs:' && \
-              journalctl -u zeniqswap-backend.service -n 50 --no-pager && \
-              exit 1; \
-            fi"
+          echo 'Stopping service and cleaning up...' && \
+          sudo systemctl stop zeniqswap-backend.service || true && \
+          sleep 2 && \
+          docker rm -f zeniqswap_backend || true && \
+          docker ps -a | grep zeniqswap_backend || true && \
+          echo 'Forcing cleanup of any remaining containers...' && \
+          docker ps -q -f name=zeniqswap_backend | xargs -r docker rm -f || true && \
+          sleep 2 && \
+          echo 'Starting service...' && \
+          sudo systemctl start zeniqswap-backend.service && \
+          echo 'Waiting for service to stabilize...' && \
+          sleep 5 && \
+          if ! systemctl is-active --quiet zeniqswap-backend.service; then \
+            echo 'Service failed to start. Checking logs:' && \
+            journalctl -u zeniqswap-backend.service -n 50 --no-pager && \
+            docker ps -a | grep zeniqswap_backend || true && \
+            exit 1; \
+          fi"
 
       - name: Verify deployment on LIQ server
         if: always()
@@ -192,18 +198,24 @@ jobs:
       - name: Restart service on DEX server
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
-            echo 'Stopping service...' && \
-            sudo systemctl stop zeniqswap-backend.service || true && \
-            sleep 2 && \
-            echo 'Starting service...' && \
-            sudo systemctl start zeniqswap-backend.service && \
-            echo 'Waiting for service to stabilize...' && \
-            sleep 5 && \
-            if ! systemctl is-active --quiet zeniqswap-backend.service; then \
-              echo 'Service failed to start. Checking logs:' && \
-              journalctl -u zeniqswap-backend.service -n 50 --no-pager && \
-              exit 1; \
-            fi"
+          echo 'Stopping service and cleaning up...' && \
+          sudo systemctl stop zeniqswap-backend.service || true && \
+          sleep 2 && \
+          docker rm -f zeniqswap_backend || true && \
+          docker ps -a | grep zeniqswap_backend || true && \
+          echo 'Forcing cleanup of any remaining containers...' && \
+          docker ps -q -f name=zeniqswap_backend | xargs -r docker rm -f || true && \
+          sleep 2 && \
+          echo 'Starting service...' && \
+          sudo systemctl start zeniqswap-backend.service && \
+          echo 'Waiting for service to stabilize...' && \
+          sleep 5 && \
+          if ! systemctl is-active --quiet zeniqswap-backend.service; then \
+            echo 'Service failed to start. Checking logs:' && \
+            journalctl -u zeniqswap-backend.service -n 50 --no-pager && \
+            docker ps -a | grep zeniqswap_backend || true && \
+            exit 1; \
+          fi"
 
       - name: Verify deployment on DEX server
         if: always()
