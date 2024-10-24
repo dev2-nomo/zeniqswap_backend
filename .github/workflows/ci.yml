@@ -78,12 +78,47 @@ jobs:
         if: always()
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
-            docker rm -f zeniqswap_backend || true"
+            echo 'Stopping container...' && \
+            if docker ps -q -f name=zeniqswap_backend; then \
+              echo 'Container exists, attempting graceful stop...' && \
+              docker stop zeniqswap_backend || true && \
+              sleep 5 && \
+              docker rm -f zeniqswap_backend || true; \
+            fi && \
+              echo 'Checking for zombie processes...' && \
+            if pgrep -f zeniqswap_backend; then \
+              echo 'Found remaining processes, forcing cleanup...' && \
+              sudo pkill -9 -f zeniqswap_backend || true && \
+              sleep 2; \
+            fi && \
+              echo 'Cleanup complete'"
+
+      - name: Start new container on LIQ server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
+            echo 'Starting new container...' && \
+            docker run -d \
+              --init \
+              --name zeniqswap_backend \
+              --restart unless-stopped \
+              zeniqswap_backend || exit 1 && \
+            echo 'Container started successfully'"
 
       - name: Restart service on LIQ server
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
-            sudo systemctl restart zeniqswap-backend.service"
+            echo 'Stopping service...' && \
+            sudo systemctl stop zeniqswap-backend.service || true && \
+            sleep 2 && \
+            echo 'Starting service...' && \
+            sudo systemctl start zeniqswap-backend.service && \
+            echo 'Waiting for service to stabilize...' && \
+            sleep 5 && \
+            if ! systemctl is-active --quiet zeniqswap-backend.service; then \
+              echo 'Service failed to start. Checking logs:' && \
+              journalctl -u zeniqswap-backend.service -n 50 --no-pager && \
+              exit 1; \
+            fi"
 
       - name: Verify deployment on LIQ server
         if: always()
@@ -114,17 +149,52 @@ jobs:
         if: always()
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
-            docker rm -f zeniqswap_backend || true"
+            echo 'Stopping container...' && \
+            if docker ps -q -f name=zeniqswap_backend; then \
+              echo 'Container exists, attempting graceful stop...' && \
+              docker stop zeniqswap_backend || true && \
+              sleep 5 && \
+              docker rm -f zeniqswap_backend || true; \
+            fi && \
+              echo 'Checking for zombie processes...' && \
+            if pgrep -f zeniqswap_backend; then \
+              echo 'Found remaining processes, forcing cleanup...' && \
+              sudo pkill -9 -f zeniqswap_backend || true && \
+              sleep 2; \
+            fi && \
+              echo 'Cleanup complete'"
+
+      - name: Start new container on DEX server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
+            echo 'Starting new container...' && \
+            docker run -d \
+            --init \
+            --name zeniqswap_backend \
+            --restart unless-stopped \
+            zeniqswap_backend || exit 1 && \
+            echo 'Container started successfully'"
 
       - name: Restart service on DEX server
         run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
-            sudo systemctl restart zeniqswap-backend.service"
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
+            echo 'Stopping service...' && \
+            sudo systemctl stop zeniqswap-backend.service || true && \
+            sleep 2 && \
+            echo 'Starting service...' && \
+            sudo systemctl start zeniqswap-backend.service && \
+            echo 'Waiting for service to stabilize...' && \
+            sleep 5 && \
+            if ! systemctl is-active --quiet zeniqswap-backend.service; then \
+              echo 'Service failed to start. Checking logs:' && \
+              journalctl -u zeniqswap-backend.service -n 50 --no-pager && \
+              exit 1; \
+            fi"
 
       - name: Verify deployment on DEX server
         if: always()
         run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
             echo 'Docker container status:' && \
             if docker ps | grep -q zeniqswap_backend; then \
               echo 'Container is running' && \
