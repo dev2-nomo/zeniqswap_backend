@@ -10,10 +10,6 @@ import '../models/pair_info.dart';
 const REQUEST_TIMEOUT_LIMIT = Duration(seconds: 10);
 const PRICE_ENDPOINT = 'https://price.zeniq.services/v2';
 
-const chaindIdMap = {
-  383414847825: 'zeniq-smart-chain',
-};
-
 enum Currency {
   usd('US Dollar', '\$'),
   eur('Euro', '€');
@@ -63,9 +59,128 @@ class PriceEntity {
   final double price;
   final bool isPending;
   final String currency;
+
+  @override
+  String toString() {
+    // TODO: implement toString
+    return '{token: $token, price: $price, currency: $currency}';
+  }
+
+  PriceState get priceState => PriceState(
+        price: price,
+        currency: Currency.fromString(currency)!,
+      );
 }
 
 abstract class PriceRepository {
+  ///
+  /// All Prices
+  ///
+  static Future<List<PriceEntity>> fetchAll({
+    required Currency currency,
+    required Iterable<CoinEntity> tokens,
+  }) async {
+    if (tokens.length <= 20) {
+      return _fetchAllCatchEmpty(currency: currency, tokens: tokens);
+    }
+
+    final results = await Future.wait([
+      for (var i = 0; i < tokens.length; i += 20)
+        _fetchAllCatchEmpty(
+          currency: currency,
+          tokens: tokens.skip(i).take(20),
+        ),
+    ]);
+
+    final result = results.reduce((value, element) => [...value, ...element]);
+
+    return result;
+  }
+
+  static Future<List<PriceEntity>> _fetchAllCatchEmpty({
+    required Currency currency,
+    required Iterable<CoinEntity> tokens,
+  }) async {
+    final List<PriceEntity> prices = [];
+    try {
+      final priceEntities = await _fetchAll(
+        currency: currency,
+        tokens: tokens,
+      );
+
+      prices.addAll(priceEntities);
+    } catch (e) {
+      Logger.log("Price Fetch Error: $e", "PriceFetch");
+    }
+    return prices;
+  }
+
+  static Future<List<PriceEntity>> _fetchAll({
+    required Currency currency,
+    required Iterable<CoinEntity> tokens,
+  }) async {
+    final uri = Uri.parse('$PRICE_ENDPOINT/currentpricelist');
+
+    Logger.logFetch(
+      "Fetch Price for [Assets=$tokens] in [Currency=$currency] from [Uri=$uri]",
+      "PriceFetch",
+    );
+
+    final _tokens = tokens.map(
+      (token) => switch (token) {
+        zeniqTokenWrapper || wrappedZeniqSmart => zeniqSmart,
+        _ => token,
+      },
+    );
+
+    final _body = jsonEncode(
+      [
+        for (final token in _tokens)
+          switch (token) {
+            ERC20Entity token => [
+                token.contractAddress,
+                currency.name,
+                'zeniq-smart-chain'
+              ],
+            _ => [
+                token.name,
+                currency.name,
+              ],
+          }
+      ],
+    );
+
+    final response = await HTTPService.client
+        .post(
+          uri,
+          headers: {"Content-Type": "application/json"},
+          body: _body,
+        )
+        .timeout(
+          REQUEST_TIMEOUT_LIMIT,
+          onTimeout: () =>
+              throw TimeoutException("Timeout", REQUEST_TIMEOUT_LIMIT),
+        );
+
+    if (response.statusCode != 200) {
+      throw Exception(
+        "price_repository: $uri returned status code ${response.statusCode}",
+      );
+    }
+    final body = jsonDecode(response.body);
+
+    if (body == null || body is! List) {
+      throw Exception(
+        "price_repository: $uri returned null ($_tokens $currency)",
+      );
+    }
+
+    return [
+      for (int i = 0; i < body.length; i++)
+        if (body[i] != null) PriceEntity.fromJson(body[i], _tokens[i]),
+    ];
+  }
+
   ///
   /// Single
   ///
@@ -73,9 +188,14 @@ abstract class PriceRepository {
     CoinEntity token,
     Currency currency,
   ) async {
-    final endpoint = token is ERC20Entity
-        ? '$PRICE_ENDPOINT/currentprice/${token.contractAddress}/${currency.name}/${chaindIdMap[token.chainID]!}'
-        : '$PRICE_ENDPOINT/currentprice/${token.name}/${currency.name}';
+    final _token = switch (token) {
+      zeniqTokenWrapper || wrappedZeniqSmart => zeniqSmart,
+      _ => token,
+    };
+
+    final endpoint = _token is ERC20Entity
+        ? '$PRICE_ENDPOINT/currentprice/${_token.contractAddress}/${currency.name}/zeniq-smart-chain'
+        : '$PRICE_ENDPOINT/currentprice/${_token.name}/${currency.name}';
     try {
       final price = await _fetchSingle(
         endpoint: endpoint,

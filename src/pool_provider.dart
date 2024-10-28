@@ -8,6 +8,7 @@ import 'common/token_repository.dart';
 import 'models/image_entity.dart';
 import 'models/pair_info.dart';
 import 'models/token_entity.dart';
+import 'package:collection/collection.dart';
 
 final rpc = EvmRpcInterface(
   type: ZeniqSmartNetwork,
@@ -45,13 +46,13 @@ class PairProvider {
 
   Map<Currency, Map<ERC20Entity, Map<PairType, double>>> pairTokenPrices = {};
 
-  Map<ERC20Entity, ImageEntity?> tokenImages = {};
-
   Set<TokenEntity> tokens = {};
 
   Set<ERC20Entity> fixedTokens = {};
 
-  Map<Currency, double> zeniqPrices = {};
+  Map<Currency, List<PriceEntity>> priceServicePrices = {};
+
+  Map<ERC20Entity, ImageEntity?> tokenImages = {};
 
   Future<void> init() async {
     await update();
@@ -71,8 +72,8 @@ class PairProvider {
   }
 
   Future<void> updateNoPriority() async {
-    await fetchTokenImages();
     await fetchFixedTokens();
+    await fetchTokenImages();
   }
 
   Future<void> update() async {
@@ -85,14 +86,24 @@ class PairProvider {
         <Currency, Map<ERC20Entity, Map<PairType, double>>>{};
 
     try {
-      final newZeniqPrices = {
+      var newPriceServicePrices = {
         for (final cur in currencies)
-          cur: await PriceRepository.fetchSingle(zeniqSmart, cur),
+          cur: await PriceRepository.fetchAll(
+            tokens: tokens,
+            currency: cur,
+          ),
       };
-      zeniqPrices = newZeniqPrices;
+      priceServicePrices = newPriceServicePrices;
     } catch (e, s) {
       Logger.logError(e, s: s);
     }
+
+    final zeniqPrices = {
+      for (final cur in currencies)
+        cur: priceServicePrices[cur]?.firstWhereOrNull(
+          (element) => element.token == zeniqSmart,
+        ),
+    };
 
     if (zeniqPrices.isEmpty) {
       return;
@@ -101,34 +112,36 @@ class PairProvider {
     for (var i = 0; i < currencies.length; i++) {
       final cur = currencies[i];
       final zeniqPrice = zeniqPrices[cur]!;
-      final zeniqPriceState = PriceState(price: zeniqPrice, currency: cur);
+
+      final priceServicePrices = this.priceServicePrices[cur]!;
 
       newPairTokenPrices[cur] = {};
 
       for (final pair in pairs) {
-        /// Pfusch Lösung für AVINOC juckt aber ka sau
-        if (pair.token == avinocZSC) {
-          try {
-            final price = await PriceRepository.fetchSingle(pair.token, cur);
-            newPairTokenPrices[cur]!.update(
-              pair.token,
-              (value) {
-                return {
-                  ...value,
-                  pair.type: price,
-                };
-              },
-              ifAbsent: () => {
-                pair.type: price,
-              },
-            );
-            continue;
-          } catch (e) {
-            Logger.logError(e);
-          }
+        final token = pair.token;
+
+        // Skip if the token is in PriceService
+        final existingPriceState = priceServicePrices.singleWhereOrNull(
+          (element) => element.token == token,
+        );
+        if (existingPriceState != null) {
+          newPairTokenPrices[cur]!.update(
+            pair.token,
+            (value) {
+              return {
+                ...value,
+                pair.type: existingPriceState.price,
+              };
+            },
+            ifAbsent: () => {
+              pair.type: existingPriceState.price,
+            },
+          );
+
+          continue;
         }
 
-        final priceState = pair.calculateTokenPrice(zeniqPriceState);
+        final priceState = pair.calculateTokenPrice(zeniqPrice.priceState);
         newPairTokenPrices[cur]!.update(
           pair.token,
           (value) {
@@ -144,7 +157,7 @@ class PairProvider {
       }
 
       final json = {
-        'zeniqPrice': zeniqPrice,
+        'zeniqPrice': zeniqPrice.price,
         'tokenPrices': [
           for (final entry in newPairTokenPrices[cur]!.entries)
             {
@@ -177,6 +190,24 @@ class PairProvider {
     } catch (e) {
       Logger.logError(e);
     }
+  }
+
+  Future<void> fetchTokenImages() async {
+    final results = await Future.wait(
+      [
+        for (final token in tokens)
+          ImageRepository.getImage(
+            switch (token) {
+              zeniqTokenWrapper || wrappedZeniqSmart => zeniqSmart,
+              _ => token,
+            },
+          ),
+      ],
+    );
+
+    tokenImages = {
+      for (var i = 0; i < tokens.length; i++) tokens.elementAt(i): results[i],
+    };
   }
 
   Future<void> fetchPairs() async {
@@ -220,24 +251,6 @@ class PairProvider {
     } catch (e, s) {
       Logger.logError(e, s: s);
     }
-  }
-
-  Future<void> fetchTokenImages() async {
-    final results = await Future.wait(
-      [
-        for (final token in tokens)
-          ImageRepository.getImage(
-            switch (token) {
-              zeniqTokenWrapper || wrappedZeniqSmart => zeniqSmart,
-              _ => token,
-            },
-          ),
-      ],
-    );
-
-    tokenImages = {
-      for (var i = 0; i < tokens.length; i++) tokens.elementAt(i): results[i],
-    };
   }
 }
 

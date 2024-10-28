@@ -10,4 +10,3 @@ analyzer:
 linter:
   rules:
     - camel_case_types
-    - lower_case_with_underscores 

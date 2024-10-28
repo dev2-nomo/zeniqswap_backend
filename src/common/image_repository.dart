@@ -10,7 +10,7 @@ import 'price_repository.dart';
 abstract class ImageRepository {
   static Future<ImageEntity?> getImage(CoinEntity token) async {
     final endpoint =
-        '$PRICE_ENDPOINT/info/image/${token is ERC20Entity ? '${token.contractAddress}/${chaindIdMap[token.chainID]}' : token.name}';
+        '$PRICE_ENDPOINT/info/image/${token is ERC20Entity ? '${token.contractAddress}/zeniq-smart-chain' : token.name}';
     try {
       final result = await _getImage(endpoint).timeout(REQUEST_TIMEOUT_LIMIT);
       return result;
