@@ -105,7 +105,7 @@ class PairProvider {
         ),
     };
 
-    if (zeniqPrices.isEmpty) {
+    if (zeniqPrices.isEmpty || zeniqPrices.values.contains(null)) {
       return;
     }
 

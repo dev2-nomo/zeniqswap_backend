@@ -111,6 +111,7 @@ abstract class PriceRepository {
       prices.addAll(priceEntities);
     } catch (e) {
       Logger.log("Price Fetch Error: $e", "PriceFetch");
+      rethrow;
     }
     return prices;
   }
