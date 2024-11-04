@@ -9,4 +9,8 @@ analyzer:
     - packages/**
 linter:
   rules:
-    - camel_case_types
+    - camel_case_types: true
+    - file_names: false
+    - constant_identifier_names: false
+    - no_leading_underscores_for_local_identifiers: false
+    - non_constant_identifier_names: false
