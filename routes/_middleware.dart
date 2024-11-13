@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:dart_frog/dart_frog.dart';
 import 'package:shelf_cors_headers/shelf_cors_headers.dart' as shelf;
 import '../src/pool_provider.dart';
@@ -14,8 +12,12 @@ Handler middleware(Handler handler) {
         fromShelfMiddleware(
           shelf.corsHeaders(
             headers: {
-              shelf.ACCESS_CONTROL_ALLOW_ORIGIN:
-                  Platform.environment['FRONTEND_URL'] ?? frontendUrl,
+              shelf.ACCESS_CONTROL_ALLOW_ORIGIN: '*',
+              shelf.ACCESS_CONTROL_ALLOW_METHODS:
+                  'GET, POST, PUT, DELETE, OPTIONS',
+              shelf.ACCESS_CONTROL_ALLOW_HEADERS:
+                  'Origin, Content-Type, Accept, Authorization',
+              shelf.ACCESS_CONTROL_ALLOW_CREDENTIALS: 'true',
             },
           ),
         ),
