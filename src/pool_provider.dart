@@ -29,7 +29,7 @@ final factoryOld = UniswapV2Factory(
 );
 
 class PairProvider {
-  final List<Currency> currencies = [Currency.eur, Currency.usd];
+  final List<Currency> currencies = Currency.values;
 
   PairProvider._();
   final Map<String, dynamic> cache = {};
