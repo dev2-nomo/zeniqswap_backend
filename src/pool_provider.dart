@@ -135,12 +135,12 @@ class PairProvider {
 
         // Add price service price if available
         final priceServicePrice = priceServicePrices
-                .singleWhereOrNull((element) => element.token == token)
-                ?.price ??
-            0.0;
-
-        newPairTokenPrices[cur]![token]![PairType.priceService] =
-            priceServicePrice;
+            .singleWhereOrNull((element) => element.token == token)
+            ?.price;
+        if (priceServicePrice != null) {
+          newPairTokenPrices[cur]![token]![PairType.priceService] =
+              priceServicePrice;
+        }
       }
 
       // Update cache
