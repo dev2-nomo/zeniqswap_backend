@@ -4,6 +4,7 @@ import '../common/price_repository.dart';
 
 enum PairType {
   legacy,
+  priceService,
   v2;
 
   @override

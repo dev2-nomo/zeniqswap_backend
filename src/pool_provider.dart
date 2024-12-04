@@ -112,50 +112,38 @@ class PairProvider {
     for (var i = 0; i < currencies.length; i++) {
       final cur = currencies[i];
       final zeniqPrice = zeniqPrices[cur]!;
-
       final priceServicePrices = this.priceServicePrices[cur]!;
 
       newPairTokenPrices[cur] = {};
 
       for (final pair in pairs) {
         final token = pair.token;
+        final calculatedPrice =
+            pair.calculateTokenPrice(zeniqPrice.priceState).price;
 
-        // Skip if the token is in PriceService
-        final existingPriceState = priceServicePrices.singleWhereOrNull(
-          (element) => element.token == token,
-        );
-        if (existingPriceState != null) {
-          newPairTokenPrices[cur]!.update(
-            pair.token,
-            (value) {
-              return {
-                ...value,
-                pair.type: existingPriceState.price,
-              };
-            },
-            ifAbsent: () => {
-              pair.type: existingPriceState.price,
-            },
-          );
-
-          continue;
-        }
-
-        final priceState = pair.calculateTokenPrice(zeniqPrice.priceState);
+        // Add calculated price for legacy and v2 pairs
         newPairTokenPrices[cur]!.update(
-          pair.token,
-          (value) {
-            return {
-              ...value,
-              pair.type: priceState.price,
-            };
+          token,
+          (value) => {
+            ...value,
+            pair.type: calculatedPrice,
           },
           ifAbsent: () => {
-            pair.type: priceState.price,
+            pair.type: calculatedPrice,
           },
         );
+
+        // Add price service price if available
+        final priceServicePrice = priceServicePrices
+                .singleWhereOrNull((element) => element.token == token)
+                ?.price ??
+            0.0;
+
+        newPairTokenPrices[cur]![token]![PairType.priceService] =
+            priceServicePrice;
       }
 
+      // Update cache
       final json = {
         'zeniqPrice': zeniqPrice.price,
         'tokenPrices': [
@@ -163,10 +151,8 @@ class PairProvider {
             {
               'token': entry.key.contractAddress,
               'prices': entry.value.map(
-                (key, value) {
-                  return MapEntry(key.name, value);
-                },
-              )
+                (pairType, price) => MapEntry(pairType.name, price),
+              ),
             },
         ],
       };
