@@ -103,7 +103,8 @@ jobs:
               docker ps | grep zeniqswap_backend; \
             else \
               echo 'Warning: Container not found'; \
-            fi && \
+            fi
+          "
       
 
   build-and-deploy:
