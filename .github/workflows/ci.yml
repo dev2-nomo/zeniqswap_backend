@@ -162,7 +162,7 @@ jobs:
             cd zeniqswap_backend && \
             docker build . -t zeniqswap_backend"
 
-      - name: Stop old container on LIQ server
+      - name: Stop and remove old container on LIQ server
         if: always()
         continue-on-error: true
         run: |
@@ -170,7 +170,10 @@ jobs:
             echo 'Stopping container...' && \
             (docker stop zeniqswap_backend || true) && \
             (docker rm -f zeniqswap_backend || true) && \
-            (docker system prune -f || true) && \
+            sleep 2 && \
+            docker rm -f $(docker ps -a -q --filter 'name=zeniqswap_backend') || true && \
+            docker rm -f $(docker ps -a -q --filter 'status=dead') || true && \
+            docker rm -f $(docker ps -a -q --filter 'status=exited') || true && \
             echo 'Cleanup complete'"
 
       - name: Start new container on LIQ server
@@ -228,7 +231,7 @@ jobs:
             --name zeniqswap_backend \
             --restart unless-stopped \
             -p 8080:8080 \
-            -e VERSION=${{ github.ref_name }} \ho
+            -e VERSION=${{ github.ref_name }} \
             zeniqswap_backend || exit 1 && \
             echo 'Container started successfully'"
 
