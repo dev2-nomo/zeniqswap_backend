@@ -69,9 +69,6 @@ jobs:
             echo 'Stopping container...' && \
             (docker stop zeniqswap_backend || true) && \
             (docker rm -f zeniqswap_backend || true) && \
-            echo 'Container stopped' && \
-            (sudo systemctl stop zeniqswap-backend.service || true) && \
-            echo 'Service stopped' && \
             (docker system prune -f || true) && \
             echo 'Cleanup complete'"
 
@@ -81,10 +78,8 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "\
             echo 'Emergency cleanup...' && \
-            (sudo systemctl stop zeniqswap-backend.service || true) && \
             (docker kill zeniqswap_backend || true) && \
             (docker rm -f zeniqswap_backend || true) && \
-            (sudo pkill -9 -f zeniqswap_backend || true) && \
             echo 'Emergency cleanup complete'"
 
       - name: Start new container on staging server
@@ -102,7 +97,6 @@ jobs:
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "\
           echo 'Stopping service and cleaning up...' && \
-          sudo systemctl stop zeniqswap-backend.service || true && \
           sleep 2 && \
           docker rm -f zeniqswap_backend || true && \
           docker ps -a | grep zeniqswap_backend || true && \
@@ -110,15 +104,9 @@ jobs:
           docker ps -q -f name=zeniqswap_backend | xargs -r docker rm -f || true && \
           sleep 2 && \
           echo 'Starting service...' && \
-          sudo systemctl start zeniqswap-backend.service && \
-          echo 'Waiting for service to stabilize...' && \
-          sleep 5 && \
-          if ! systemctl is-active --quiet zeniqswap-backend.service; then \
-            echo 'Service failed to start. Checking logs:' && \
-            journalctl -u zeniqswap-backend.service -n 50 --no-pager && \
-            docker ps -a | grep zeniqswap_backend || true && \
-            exit 1; \
-          fi"
+          docker ps -a | grep zeniqswap_backend || true && \
+          exit 1; \
+      
 
       - name: Verify deployment on staging server
         if: always()
@@ -131,13 +119,7 @@ jobs:
             else \
               echo 'Warning: Container not found'; \
             fi && \
-            echo 'Service status:' && \
-            if systemctl is-active --quiet zeniqswap-backend.service; then \
-              echo 'Service is active' && \
-              systemctl status zeniqswap-backend.service; \
-            else \
-              echo 'Warning: Service is not active'; \
-            fi"
+      
 
   build-and-deploy:
     name: Build and Deploy
