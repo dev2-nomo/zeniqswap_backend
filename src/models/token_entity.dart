@@ -17,9 +17,6 @@ class TokenEntity extends ERC20Entity {
         );
 
   @override
-  int get hashCode => super.hashCode;
-
-  @override
   Json toJson() {
     return {
       "chainID": chainID,

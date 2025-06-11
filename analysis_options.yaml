@@ -2,8 +2,12 @@ include: package:lints/recommended.yaml
 
 # Uncomment the following section to specify additional rules.
 
-
 analyzer:
+  errors:
+    file_names: ignore
+    constant_identifier_names: ignore
+    no_leading_underscores_for_local_identifiers: ignore
+    non_constant_identifier_names: ignore
   exclude:
     - build/**
     - packages/**

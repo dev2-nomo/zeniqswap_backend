@@ -10,6 +10,7 @@ dependencies:
   dart_frog: ^1.1.0
   shelf_cors_headers: ^0.1.5
   collection: ^1.19.0
+  http: ^1.4.0
   walletkit_dart:
     path: packages/walletkit-dart
 
