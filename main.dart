@@ -5,7 +5,7 @@ import 'package:dart_frog/dart_frog.dart';
 
 import 'src/pool_provider.dart';
 
-const version = "1.0.11";
+final version = Platform.environment['VERSION'] ?? 'vi-latest';
 
 Future<void> init(InternetAddress ip, int port) async {
   unawaited(PairProvider.instance.init());

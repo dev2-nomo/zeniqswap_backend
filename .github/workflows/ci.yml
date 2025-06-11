@@ -89,6 +89,7 @@ jobs:
               --name zeniqswap_backend \
               --restart unless-stopped \
               -p 8080:8080 \
+              -e VERSION=${{github.ref_name}} \
               zeniqswap_backend || exit 1 && \
             echo 'Container started successfully'"
 
