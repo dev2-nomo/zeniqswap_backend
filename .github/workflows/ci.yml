@@ -69,7 +69,7 @@ jobs:
             cd zeniqswap_backend && \
             docker build . -t zeniqswap_backend"
 
-      - name: Stop old container on staging server
+      - name: Stop and remove old container on Staging server
         if: always()
         continue-on-error: true
         run: |
@@ -77,8 +77,15 @@ jobs:
             echo 'Stopping container...' && \
             (docker stop zeniqswap_backend || true) && \
             (docker rm -f zeniqswap_backend || true) && \
-            (docker system prune -f || true) && \
+            sleep 2 && \
+            docker rm -f $(docker ps -a -q --filter 'name=zeniqswap_backend') || true && \
+            docker rm -f $(docker ps -a -q --filter 'status=dead') || true && \
+            docker rm -f $(docker ps -a -q --filter 'status=exited') || true && \
             echo 'Cleanup complete'"
+      
+      - name: Prune unused Docker resources on Staging server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "docker system prune -f"
 
       - name: Start new container on staging server
         run: |
@@ -176,6 +183,10 @@ jobs:
             docker rm -f $(docker ps -a -q --filter 'status=exited') || true && \
             echo 'Cleanup complete'"
 
+      - name: Prune unused Docker resources on LIQ server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "docker system prune -f"
+
       - name: Start new container on LIQ server
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
@@ -221,6 +232,10 @@ jobs:
             docker rm -f $(docker ps -a -q --filter 'status=dead') || true && \
             docker rm -f $(docker ps -a -q --filter 'status=exited') || true && \
             echo 'Cleanup complete'"
+
+      - name: Prune unused Docker resources on DEX server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "docker system prune -f"
 
       - name: Start new container on DEX server
         run: |
