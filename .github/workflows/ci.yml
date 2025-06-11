@@ -14,7 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v1
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.27.4"
+          channel: "stable"
+          cache: true
       - run: git submodule update --init --recursive
       - run: flutter pub get
       - name: Lint analysis
@@ -28,7 +32,11 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/vi')
     steps:
       - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v1
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.27.4"
+          channel: "stable"
+          cache: true
       - run: git submodule update --init --recursive
       - run: flutter pub get
 
@@ -72,16 +80,6 @@ jobs:
             (docker system prune -f || true) && \
             echo 'Cleanup complete'"
 
-      - name: Emergency cleanup if needed
-        if: always()
-        continue-on-error: true
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "\
-            echo 'Emergency cleanup...' && \
-            (docker kill zeniqswap_backend || true) && \
-            (docker rm -f zeniqswap_backend || true) && \
-            echo 'Emergency cleanup complete'"
-
       - name: Start new container on staging server
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "\
@@ -90,23 +88,9 @@ jobs:
               --init \
               --name zeniqswap_backend \
               --restart unless-stopped \
+              -p 8080:8080 \
               zeniqswap_backend || exit 1 && \
             echo 'Container started successfully'"
-
-      - name: Restart service on staging server
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "\
-          echo 'Stopping service and cleaning up...' && \
-          sleep 2 && \
-          docker rm -f zeniqswap_backend || true && \
-          docker ps -a | grep zeniqswap_backend || true && \
-          echo 'Forcing cleanup of any remaining containers...' && \
-          docker ps -q -f name=zeniqswap_backend | xargs -r docker rm -f || true && \
-          sleep 2 && \
-          echo 'Starting service...' && \
-          docker ps -a | grep zeniqswap_backend || true && \
-          exit 1; \
-      
 
       - name: Verify deployment on staging server
         if: always()
