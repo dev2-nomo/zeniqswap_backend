@@ -114,7 +114,11 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/vi')
     steps:
       - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v1
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.27.4"
+          channel: "stable"
+          cache: true
       - run: git submodule update --init --recursive
       - run: flutter pub get
 
@@ -152,8 +156,6 @@ jobs:
       - name: rsync to dex server
         run: rsync -avz --delete --exclude='.git' build/ ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }}:zeniqswap_backend/
 
-      #   - name: build docker image on LIQ server
-      #     run: ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "cd zeniqswap_backend && docker build . -t zeniqswap_backend && docker rm -f zeniqswap_backend && docker ps -a | grep zeniqswap_backend && systemctl restart zeniqswap-backend.service"
       - name: Build Docker image on LIQ server
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
@@ -168,23 +170,8 @@ jobs:
             echo 'Stopping container...' && \
             (docker stop zeniqswap_backend || true) && \
             (docker rm -f zeniqswap_backend || true) && \
-            echo 'Container stopped' && \
-            (sudo systemctl stop zeniqswap-backend.service || true) && \
-            echo 'Service stopped' && \
             (docker system prune -f || true) && \
             echo 'Cleanup complete'"
-
-      - name: Emergency cleanup if needed
-        if: always()
-        continue-on-error: true
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
-            echo 'Emergency cleanup...' && \
-            (sudo systemctl stop zeniqswap-backend.service || true) && \
-            (docker kill zeniqswap_backend || true) && \
-            (docker rm -f zeniqswap_backend || true) && \
-            (sudo pkill -9 -f zeniqswap_backend || true) && \
-            echo 'Emergency cleanup complete'"
 
       - name: Start new container on LIQ server
         run: |
@@ -194,30 +181,10 @@ jobs:
               --init \
               --name zeniqswap_backend \
               --restart unless-stopped \
+              -p 8080:8080 \
+              -e VERSION=${{github.ref_name}} \
               zeniqswap_backend || exit 1 && \
             echo 'Container started successfully'"
-
-      - name: Restart service on LIQ server
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
-          echo 'Stopping service and cleaning up...' && \
-          sudo systemctl stop zeniqswap-backend.service || true && \
-          sleep 2 && \
-          docker rm -f zeniqswap_backend || true && \
-          docker ps -a | grep zeniqswap_backend || true && \
-          echo 'Forcing cleanup of any remaining containers...' && \
-          docker ps -q -f name=zeniqswap_backend | xargs -r docker rm -f || true && \
-          sleep 2 && \
-          echo 'Starting service...' && \
-          sudo systemctl start zeniqswap-backend.service && \
-          echo 'Waiting for service to stabilize...' && \
-          sleep 5 && \
-          if ! systemctl is-active --quiet zeniqswap-backend.service; then \
-            echo 'Service failed to start. Checking logs:' && \
-            journalctl -u zeniqswap-backend.service -n 50 --no-pager && \
-            docker ps -a | grep zeniqswap_backend || true && \
-            exit 1; \
-          fi"
 
       - name: Verify deployment on LIQ server
         if: always()
@@ -229,14 +196,8 @@ jobs:
               docker ps | grep zeniqswap_backend; \
             else \
               echo 'Warning: Container not found'; \
-            fi && \
-            echo 'Service status:' && \
-            if systemctl is-active --quiet zeniqswap-backend.service; then \
-              echo 'Service is active' && \
-              systemctl status zeniqswap-backend.service; \
-            else \
-              echo 'Warning: Service is not active'; \
-            fi"
+            fi
+          "
 
       - name: Build Docker image on DEX server
         run: |
@@ -252,23 +213,8 @@ jobs:
             echo 'Stopping container...' && \
             (docker stop zeniqswap_backend || true) && \
             (docker rm -f zeniqswap_backend || true) && \
-            echo 'Container stopped' && \
-            (sudo systemctl stop zeniqswap-backend.service || true) && \
-            echo 'Service stopped' && \
             (docker system prune -f || true) && \
             echo 'Cleanup complete'"
-
-      - name: Emergency cleanup DEX if needed
-        if: failure()
-        continue-on-error: true
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
-            echo 'Emergency cleanup...' && \
-            (sudo systemctl stop zeniqswap-backend.service || true) && \
-            (docker kill zeniqswap_backend || true) && \
-            (docker rm -f zeniqswap_backend || true) && \
-            (sudo pkill -9 -f zeniqswap_backend || true) && \
-            echo 'Emergency cleanup complete'"
 
       - name: Start new container on DEX server
         run: |
@@ -278,30 +224,10 @@ jobs:
             --init \
             --name zeniqswap_backend \
             --restart unless-stopped \
+            -p 8080:8080 \
+            -e VERSION=${{github.ref_name}} \
             zeniqswap_backend || exit 1 && \
             echo 'Container started successfully'"
-
-      - name: Restart service on DEX server
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
-          echo 'Stopping service and cleaning up...' && \
-          sudo systemctl stop zeniqswap-backend.service || true && \
-          sleep 2 && \
-          docker rm -f zeniqswap_backend || true && \
-          docker ps -a | grep zeniqswap_backend || true && \
-          echo 'Forcing cleanup of any remaining containers...' && \
-          docker ps -q -f name=zeniqswap_backend | xargs -r docker rm -f || true && \
-          sleep 2 && \
-          echo 'Starting service...' && \
-          sudo systemctl start zeniqswap-backend.service && \
-          echo 'Waiting for service to stabilize...' && \
-          sleep 5 && \
-          if ! systemctl is-active --quiet zeniqswap-backend.service; then \
-            echo 'Service failed to start. Checking logs:' && \
-            journalctl -u zeniqswap-backend.service -n 50 --no-pager && \
-            docker ps -a | grep zeniqswap_backend || true && \
-            exit 1; \
-          fi"
 
       - name: Verify deployment on DEX server
         if: always()
@@ -313,11 +239,5 @@ jobs:
               docker ps | grep zeniqswap_backend; \
             else \
               echo 'Warning: Container not found'; \
-            fi && \
-            echo 'Service status:' && \
-            if systemctl is-active --quiet zeniqswap-backend.service; then \
-              echo 'Service is active' && \
-              systemctl status zeniqswap-backend.service; \
-            else \
-              echo 'Warning: Service is not active'; \
-            fi"
+            fi
+          "
