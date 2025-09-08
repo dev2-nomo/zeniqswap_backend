@@ -83,12 +83,11 @@ jobs:
             set -euo pipefail; \
             cd zeniqswap_backend; \
             echo 'Sanity check build context'; \
-            ls -la build/Dockerfile || { echo 'Missing build/Dockerfile'; exit 1; }; \
+            ls -la Dockerfile || { echo 'Missing Dockerfile'; exit 1; }; \
             ls -la pubspec.* || echo 'No pubspec.* found (verify Dockerfile expects these)'; \
-            ls -la pubspec_overrides.yaml || echo 'No pubspec_overrides.yaml present (optional)'; \
             docker version || true; \
             echo 'Building image zeniqswap_backend...'; \
-            docker build -t zeniqswap_backend -f build/Dockerfile . \
+            docker build -t zeniqswap_backend . \
           "
 
       - name: Stop old container on LIQ server
@@ -164,12 +163,11 @@ jobs:
             set -euo pipefail; \
             cd zeniqswap_backend; \
             echo 'Sanity check build context (DEX)'; \
-            ls -la build/Dockerfile || { echo 'Missing build/Dockerfile'; exit 1; }; \
+            ls -la Dockerfile || { echo 'Missing Dockerfile'; exit 1; }; \
             ls -la pubspec.* || echo 'No pubspec.* found (verify Dockerfile expects these)'; \
-            ls -la pubspec_overrides.yaml || echo 'No pubspec_overrides.yaml present (optional)'; \
             docker version || true; \
             echo 'Building image zeniqswap_backend (DEX)...'; \
-            docker build -t zeniqswap_backend -f build/Dockerfile . \
+            docker build -t zeniqswap_backend . \
           "
 
       - name: Stop old container on DEX server
