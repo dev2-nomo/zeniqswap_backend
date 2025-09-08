@@ -16,11 +16,16 @@ RUN dart pub get -C packages/walletkit-dart
 COPY pubspec.* ./
 RUN dart pub get
 
-# Copy app source code and AOT compile it.
+# Copy app source code
 COPY . .
+
+# Install dart_frog CLI and build the application
+RUN dart pub global activate dart_frog_cli
+RUN dart pub global run dart_frog_cli:dart_frog build
+
 # Ensure packages are still up-to-date if anything has changed
-RUN dart pub get --offline
-RUN dart compile exe bin/server.dart -o bin/server
+RUN dart pub get --offline -C build
+RUN dart compile exe build/bin/server.dart -o bin/server
 
 # Build minimal serving image from AOT-compiled `/server` and required system
 # libraries and configuration files stored in `/runtime/` from the build stage.
