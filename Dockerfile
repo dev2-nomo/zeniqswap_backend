@@ -25,6 +25,9 @@ RUN dart pub global run dart_frog_cli:dart_frog build
 
 # Ensure packages are still up-to-date if anything has changed
 RUN dart pub get --offline -C build
+
+# Create bin directory and compile executable
+RUN mkdir -p bin
 RUN dart compile exe build/bin/server.dart -o bin/server
 
 # Build minimal serving image from AOT-compiled `/server` and required system
