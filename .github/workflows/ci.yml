@@ -86,9 +86,8 @@ jobs:
             export DOCKER_BUILDKIT=1; \
             docker version || true; \
             docker buildx version || true; \
-            docker buildx create --use --name zeniqswap_builder || docker buildx use zeniqswap_builder; \
             echo 'Building image zeniqswap_backend...'; \
-            docker buildx build --load -t zeniqswap_backend -f build/Dockerfile . \
+            docker build -t zeniqswap_backend -f build/Dockerfile . \
           "
 
       - name: Stop old container on LIQ server
@@ -171,9 +170,8 @@ jobs:
             export DOCKER_BUILDKIT=1; \
             docker version || true; \
             docker buildx version || true; \
-            docker buildx create --use --name zeniqswap_builder || docker buildx use zeniqswap_builder; \
             echo 'Building image zeniqswap_backend (DEX)...'; \
-            docker buildx build --load -t zeniqswap_backend -f build/Dockerfile . \
+            docker build -t zeniqswap_backend -f build/Dockerfile . \
           "
 
       - name: Stop old container on DEX server
