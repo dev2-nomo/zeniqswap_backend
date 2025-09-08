@@ -14,125 +14,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.27.4"
-          channel: "stable"
-          cache: true
+      - uses: subosito/flutter-action@v1
       - run: git submodule update --init --recursive
       - run: flutter pub get
       - name: Lint analysis
         continue-on-error: true
         run: flutter analyze
 
-  build-and-deploy-staging:
-    name: Build and Deploy Staging
-    runs-on: ubuntu-latest
-    needs: lint
-    if: startsWith(github.ref, 'refs/tags/vi')
-    steps:
-      - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.27.4"
-          channel: "stable"
-          cache: true
-      - run: git submodule update --init --recursive
-      - run: flutter pub get
-
-      - name: activate frog cli
-        run: dart pub global activate dart_frog_cli
-
-      - name: build frog
-        run: dart_frog build
-
-      - name: Add SSH key
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-
-      - name: Add staging server to known_hosts
-        run: |
-          ssh-keyscan -H ${{ secrets.HOST_STAGING}} >> ~/.ssh/known_hosts
-
-      - name: Test staging SSH connection
-        run: |
-          ssh -v -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "echo 'SSH connection established'"
-
-      - name: rsync to staging server
-        run: rsync -avz --delete --exclude='.git' build/ ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }}:zeniqswap_backend/
-
-      - name: Build Docker image on staging server
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "\
-            cd zeniqswap_backend && \
-            docker build . -t zeniqswap_backend"
-
-      - name: Stop and remove old container on Staging server
-        if: always()
-        continue-on-error: true
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "\
-            echo 'Stopping container...' && \
-            (docker stop zeniqswap_backend || true) && \
-            (docker rm -f zeniqswap_backend || true) && \
-            sleep 2 && \
-            docker rm -f $(docker ps -a -q --filter 'name=zeniqswap_backend') || true && \
-            docker rm -f $(docker ps -a -q --filter 'status=dead') || true && \
-            docker rm -f $(docker ps -a -q --filter 'status=exited') || true && \
-            echo 'Cleanup complete'"
-      
-      - name: Prune unused Docker resources on Staging server
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "docker system prune -f"
-
-      - name: Start new container on staging server
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "\
-            echo 'Starting new container...' && \
-            docker run -d \
-              --init \
-              --name zeniqswap_backend \
-              --restart unless-stopped \
-              -p 8080:8080 \
-              -e VERSION=${{github.ref_name}} \
-              zeniqswap_backend || exit 1 && \
-            echo 'Container started successfully'"
-
-      - name: Verify deployment on staging server
-        if: always()
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOST_STAGING }} "\
-            echo 'Docker container status:' && \
-            if docker ps | grep -q zeniqswap_backend; then \
-              echo 'Container is running' && \
-              docker ps | grep zeniqswap_backend; \
-            else \
-              echo 'Warning: Container not found'; \
-            fi
-          "
-      
-
   build-and-deploy:
     name: Build and Deploy
     runs-on: ubuntu-latest
     needs: lint
-    if: startsWith(github.ref, 'refs/tags/') && !startsWith(github.ref, 'refs/tags/vi')
+    if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v3
-      - uses: subosito/flutter-action@v2
-        with:
-          flutter-version: "3.27.4"
-          channel: "stable"
-          cache: true
-      - run: git submodule update --init --recursive
-      - run: flutter pub get
 
-      - name: activate frog cli
+      - uses: subosito/flutter-action@v1
+
+      - name: Init submodules
+        run: git submodule update --init --recursive
+
+      - name: Resolve Flutter/Dart deps
+        run: flutter pub get
+
+      - name: Activate Dart Frog CLI
         run: dart pub global activate dart_frog_cli
 
-      - name: build frog
+      - name: Build Dart Frog (optional if Dockerfile builds itself)
         run: dart_frog build
 
       - name: Add SSH key
@@ -141,124 +49,197 @@ jobs:
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
 
-      - name: Add LIQ server to known_hosts
+      - name: Add remote hosts to known_hosts
         run: |
+          mkdir -p ~/.ssh
           ssh-keyscan -H ${{ secrets.HOSTLIQ }} >> ~/.ssh/known_hosts
-
-      - name: Test LIQ SSH connection
-        run: |
-          ssh -v -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "echo 'SSH connection established'"
-
-      - name: Add DEX server to known_hosts
-        run: |
           ssh-keyscan -H ${{ secrets.HOSTDEX }} >> ~/.ssh/known_hosts
 
-      - name: Test DEX SSH connection
+      - name: Test SSH connections
         run: |
-          ssh -v -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "echo 'SSH connection established'"
+          ssh -v -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "echo 'SSH LIQ ok'"
+          ssh -v -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "echo 'SSH DEX ok'"
 
-      - name: rsync to liquidity server
-        run: rsync -avz --delete --exclude='.git' build/ ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }}:zeniqswap_backend/
+      - name: rsync repo to LIQ server
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            ./ ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }}:zeniqswap_backend/
 
-      - name: rsync to dex server
-        run: rsync -avz --delete --exclude='.git' build/ ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }}:zeniqswap_backend/
+      - name: rsync repo to DEX server
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='.github' \
+            ./ ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }}:zeniqswap_backend/
 
-      - name: Build Docker image on LIQ server
+      - name: Prepare and build on LIQ server
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
-            cd zeniqswap_backend && \
-            docker build . -t zeniqswap_backend"
+            set -euo pipefail; \
+            cd zeniqswap_backend; \
+            echo 'Sanity check build context'; \
+            ls -la Dockerfile || { echo 'Missing Dockerfile'; exit 1; }; \
+            ls -la pubspec.* || echo 'No pubspec.* found (verify Dockerfile expects these)'; \
+            ls -la pubspec_overrides.yaml || echo 'No pubspec_overrides.yaml present (optional)'; \
+            echo 'Enable BuildKit'; \
+            export DOCKER_BUILDKIT=1; \
+            docker version || true; \
+            docker buildx version || true; \
+            docker buildx create --use --name zeniqswap_builder || docker buildx use zeniqswap_builder; \
+            echo 'Building image zeniqswap_backend...'; \
+            docker buildx build --load -t zeniqswap_backend . \
+          "
 
-      - name: Stop and remove old container on LIQ server
+      - name: Stop old container on LIQ server
         if: always()
         continue-on-error: true
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
-            echo 'Stopping container...' && \
-            (docker stop zeniqswap_backend || true) && \
-            (docker rm -f zeniqswap_backend || true) && \
-            sleep 2 && \
-            docker rm -f $(docker ps -a -q --filter 'name=zeniqswap_backend') || true && \
-            docker rm -f $(docker ps -a -q --filter 'status=dead') || true && \
-            docker rm -f $(docker ps -a -q --filter 'status=exited') || true && \
-            echo 'Cleanup complete'"
-
-      - name: Prune unused Docker resources on LIQ server
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "docker system prune -f"
+            echo 'Stopping container and service on LIQ...'; \
+            (docker stop zeniqswap_backend || true); \
+            (docker rm -f zeniqswap_backend || true); \
+            (sudo systemctl stop zeniqswap-backend.service || true); \
+            (docker system prune -f || true); \
+            echo 'Cleanup complete' \
+          "
 
       - name: Start new container on LIQ server
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
-            echo 'Starting new container...' && \
+            set -e; \
+            echo 'Starting new container on LIQ...'; \
             docker run -d \
               --init \
               --name zeniqswap_backend \
               --restart unless-stopped \
-              -p 8080:8080 \
-              -e VERSION=${{ github.ref_name }} \
-              zeniqswap_backend || exit 1 && \
-            echo 'Container started successfully'"
+              zeniqswap_backend; \
+            echo 'Container started successfully' \
+          "
+
+      - name: Restart service on LIQ server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
+            set -e; \
+            echo 'Restarting service on LIQ...'; \
+            sudo systemctl stop zeniqswap-backend.service || true; \
+            sleep 2; \
+            docker rm -f zeniqswap_backend || true; \
+            docker ps -q -f name=zeniqswap_backend | xargs -r docker rm -f || true; \
+            sleep 2; \
+            sudo systemctl start zeniqswap-backend.service; \
+            echo 'Waiting for service to stabilize...'; \
+            sleep 5; \
+            if ! systemctl is-active --quiet zeniqswap-backend.service; then \
+              echo 'Service failed to start. Logs:'; \
+              journalctl -u zeniqswap-backend.service -n 50 --no-pager || true; \
+              docker ps -a | grep zeniqswap_backend || true; \
+              exit 1; \
+            fi \
+          "
 
       - name: Verify deployment on LIQ server
         if: always()
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTLIQ }} "\
-            echo 'Docker container status:' && \
+            echo 'Docker container status (LIQ):'; \
             if docker ps | grep -q zeniqswap_backend; then \
-              echo 'Container is running' && \
+              echo 'Container is running'; \
               docker ps | grep zeniqswap_backend; \
             else \
               echo 'Warning: Container not found'; \
-            fi
+            fi; \
+            echo 'Service status (LIQ):'; \
+            if systemctl is-active --quiet zeniqswap-backend.service; then \
+              echo 'Service is active'; \
+              systemctl status zeniqswap-backend.service --no-pager; \
+            else \
+              echo 'Warning: Service is not active'; \
+            fi \
           "
 
-      - name: Build Docker image on DEX server
+      - name: Prepare and build on DEX server
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
-            cd zeniqswap_backend && \
-            docker build . -t zeniqswap_backend"
+            set -euo pipefail; \
+            cd zeniqswap_backend; \
+            echo 'Sanity check build context (DEX)'; \
+            ls -la Dockerfile || { echo 'Missing Dockerfile'; exit 1; }; \
+            ls -la pubspec.* || echo 'No pubspec.* found (verify Dockerfile expects these)'; \
+            ls -la pubspec_overrides.yaml || echo 'No pubspec_overrides.yaml present (optional)'; \
+            echo 'Enable BuildKit'; \
+            export DOCKER_BUILDKIT=1; \
+            docker version || true; \
+            docker buildx version || true; \
+            docker buildx create --use --name zeniqswap_builder || docker buildx use zeniqswap_builder; \
+            echo 'Building image zeniqswap_backend (DEX)...'; \
+            docker buildx build --load -t zeniqswap_backend . \
+          "
 
-      - name: Stop and remove old container on DEX server
+      - name: Stop old container on DEX server
         if: always()
         continue-on-error: true
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
-            echo 'Stopping container...' && \
-            (docker stop zeniqswap_backend || true) && \
-            (docker rm -f zeniqswap_backend || true) && \
-            sleep 2 && \
-            docker rm -f $(docker ps -a -q --filter 'name=zeniqswap_backend') || true && \
-            docker rm -f $(docker ps -a -q --filter 'status=dead') || true && \
-            docker rm -f $(docker ps -a -q --filter 'status=exited') || true && \
-            echo 'Cleanup complete'"
-
-      - name: Prune unused Docker resources on DEX server
-        run: |
-          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "docker system prune -f"
+            echo 'Stopping container and service on DEX...'; \
+            (docker stop zeniqswap_backend || true); \
+            (docker rm -f zeniqswap_backend || true); \
+            (sudo systemctl stop zeniqswap-backend.service || true); \
+            (docker system prune -f || true); \
+            echo 'Cleanup complete' \
+          "
 
       - name: Start new container on DEX server
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
-            echo 'Starting new container...' && \
+            set -e; \
+            echo 'Starting new container on DEX...'; \
             docker run -d \
-            --init \
-            --name zeniqswap_backend \
-            --restart unless-stopped \
-            -p 8080:8080 \
-            -e VERSION=${{ github.ref_name }} \
-            zeniqswap_backend || exit 1 && \
-            echo 'Container started successfully'"
+              --init \
+              --name zeniqswap_backend \
+              --restart unless-stopped \
+              zeniqswap_backend; \
+            echo 'Container started successfully' \
+          "
+
+      - name: Restart service on DEX server
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
+            set -e; \
+            echo 'Restarting service on DEX...'; \
+            sudo systemctl stop zeniqswap-backend.service || true; \
+            sleep 2; \
+            docker rm -f zeniqswap_backend || true; \
+            docker ps -q -f name=zeniqswap_backend | xargs -r docker rm -f || true; \
+            sleep 2; \
+            sudo systemctl start zeniqswap-backend.service; \
+            echo 'Waiting for service to stabilize...'; \
+            sleep 5; \
+            if ! systemctl is-active --quiet zeniqswap-backend.service; then \
+              echo 'Service failed to start. Logs:'; \
+              journalctl -u zeniqswap-backend.service -n 50 --no-pager || true; \
+              docker ps -a | grep zeniqswap_backend || true; \
+              exit 1; \
+            fi \
+          "
 
       - name: Verify deployment on DEX server
         if: always()
         run: |
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.USERNAME }}@${{ secrets.HOSTDEX }} "\
-            echo 'Docker container status:' && \
+            echo 'Docker container status (DEX):'; \
             if docker ps | grep -q zeniqswap_backend; then \
-              echo 'Container is running' && \
+              echo 'Container is running'; \
               docker ps | grep zeniqswap_backend; \
             else \
               echo 'Warning: Container not found'; \
-            fi
+            fi; \
+            echo 'Service status (DEX):'; \
+            if systemctl is-active --quiet zeniqswap-backend.service; then \
+              echo 'Service is active'; \
+              systemctl status zeniqswap-backend.service --no-pager; \
+            else \
+              echo 'Warning: Service is not active'; \
+            fi \
           "
